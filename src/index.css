@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: 'Michroma';
+  src: url('/Michroma/Michroma-Regular.ttf') format('truetype');
+  font-weight: 400;
+}
+
+@theme {
+  --color-cream: #f5f0eb;
+  --color-cream-dark: #eae5df;
+  --color-beige: #d4cfc8;
+  --color-taupe: #84827e;
+  --color-olive: #67645e;
+  --color-charcoal: #3d3b37;
+  --color-off-white: #faf9f7;
+  --color-warm-white: #f8f6f3;
+  --color-warm-gray: #9c9a96;
+
+  --font-sans: 'DM Sans', 'Helvetica Neue', 'Arial', sans-serif;
+  --font-display: 'Inter', 'Helvetica Neue', 'Arial', sans-serif;
+  --font-product: 'Michroma', sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-olive);
+  background-color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+}
+
+::selection {
+  background-color: var(--color-beige);
+  color: var(--color-charcoal);
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+}
