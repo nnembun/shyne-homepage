@@ -2,13 +2,14 @@ import { motion } from 'framer-motion';
 
 export default function Hero() {
   return (
-    <section className="relative w-full h-screen min-h-[600px] overflow-hidden rounded-xl mx-auto">
+    <section className="relative w-full overflow-hidden rounded-xl mx-auto" style={{ aspectRatio: '3/4', maxWidth: '100%' }}>
       {/* Background Image — top-anchored on mobile to keep face high, centered on desktop */}
       <div className="absolute inset-0">
         <img
-          src="/images/HER SHYE.png"
+          src="/VANILLA GLAZE HERO .png"
           alt="SHYNE beauty editorial"
-          className="w-full h-full object-cover object-top md:object-center"
+          className="w-full h-full object-contain"
+          loading="lazy"
         />
         {/* Gradient: bottom-fade on mobile so text reads cleanly, side-fade on desktop */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent md:bg-none" />
