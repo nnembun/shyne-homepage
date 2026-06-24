@@ -227,35 +227,34 @@ function InnerForm({ items, subtotal, clearCart }) {
         }
         console.log('✅ PaymentIntent created');
 
-        // 2. Confirm payment using stripe.confirmCardPayment (Apple Pay compatible)
-        console.log('Confirming payment with Apple Pay token...');
-        const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-          payment_method: e.paymentMethod.id,
-          save_payment_method: false,
-        }, { handleActions: false });
+        // 2. Confirm payment SERVER-SIDE (more reliable for Apple Pay)
+        console.log('Confirming payment server-side with payment method:', e.paymentMethod.id);
+        const confirmRes = await fetch('/api/confirm-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientSecret: clientSecret,
+            paymentMethodId: e.paymentMethod.id,
+          }),
+        });
+        const confirmData = await confirmRes.json();
 
-        if (confirmError) {
-          throw new Error(`Payment confirmation error: ${confirmError.message} (${confirmError.code})`);
+        if (!confirmRes.ok || confirmData.error) {
+          throw new Error(`Payment confirmation failed: ${confirmData.error}`);
         }
 
-        if (!paymentIntent) {
-          throw new Error('No paymentIntent returned from Stripe');
-        }
-
+        const paymentIntent = confirmData.paymentIntent;
         console.log('PaymentIntent status:', paymentIntent.status);
         console.log('PaymentIntent ID:', paymentIntent.id);
+        console.log('Amount charged:', paymentIntent.amount, paymentIntent.currency);
 
         // Check payment status
         if (paymentIntent.status === 'succeeded') {
           console.log('✅ Payment succeeded!');
           paymentSucceeded = true;
         } else if (paymentIntent.status === 'processing') {
-          console.log('⏳ Payment processing, waiting...');
-          // Payment is processing, try to fetch the latest status
-          await new Promise(r => setTimeout(r, 2000));
+          console.log('⏳ Payment processing...');
           paymentSucceeded = true;
-        } else if (paymentIntent.status === 'requires_action' || paymentIntent.status === 'requires_confirmation') {
-          throw new Error(`Payment requires action: ${paymentIntent.status}`);
         } else {
           throw new Error(`Payment failed with status: ${paymentIntent.status}`);
         }
