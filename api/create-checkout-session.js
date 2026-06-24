@@ -1,6 +1,6 @@
 /**
- * Creates a Stripe Checkout Session
- * Redirects user to Stripe-hosted checkout page
+ * Creates a Stripe Payment Link
+ * Redirects user to payment link
  */
 import Stripe from 'stripe';
 import { computeOrder } from './_prices.js';
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Convert items to Stripe line items
+    // Convert items to Stripe line items for payment link
     const lineItems = items.map(item => ({
       price_data: {
         currency: 'gbp',
@@ -50,16 +50,12 @@ export default async function handler(req, res) {
     }));
 
     // Add shipping as a line item
-    const shippingLabel = ['standard', 'nextday'].includes(shipping)
-      ? (shipping === 'standard' ? 'Standard Delivery (2-5 days)' : 'Next Day Delivery')
-      : 'Shipping';
-
     if (order.shippingCost > 0) {
       lineItems.push({
         price_data: {
           currency: 'gbp',
           product_data: {
-            name: shippingLabel,
+            name: 'Standard Delivery (2-5 days)',
           },
           unit_amount: Math.round(order.shippingCost * 100),
         },
@@ -67,30 +63,24 @@ export default async function handler(req, res) {
       });
     }
 
-    // Create checkout session
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
+    // Create payment link
+    const paymentLink = await stripe.paymentLinks.create({
       line_items: lineItems,
-      mode: 'payment',
-      success_url: `${DOMAIN}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${DOMAIN}/payment/cancel`,
-      customer_email: undefined,
-      metadata: {
-        order_items: JSON.stringify(items),
-        shipping_method: shipping,
-        subtotal: String(order.subtotal),
-        shipping_cost: String(order.shippingCost),
+      after_completion: {
+        type: 'redirect',
+        redirect: {
+          url: `${DOMAIN}/payment/success`,
+        },
       },
     });
 
-    console.log(`✅ Checkout session created: ${session.id}`);
+    console.log(`✅ Payment link created: ${paymentLink.url}`);
 
     return res.status(200).json({
-      sessionId: session.id,
-      url: session.url,
+      url: paymentLink.url,
     });
   } catch (err) {
-    console.error('❌ Checkout session error:', err.message);
-    return res.status(500).json({ error: err.message || 'Could not create checkout session.' });
+    console.error('❌ Payment link error:', err.message);
+    return res.status(500).json({ error: err.message || 'Could not create payment link.' });
   }
 }
