@@ -42,7 +42,6 @@ export default async function handler(req, res) {
         currency: 'gbp',
         product_data: {
           name: item.name,
-          images: item.image ? [item.image] : [],
         },
         unit_amount: Math.round((item.salePrice ?? item.price) * 100),
       },
