@@ -162,28 +162,112 @@ function InnerForm({ items, subtotal, clearCart }) {
   // Initialise the Stripe Payment Request (Apple Pay / Google Pay) once
   useEffect(() => {
     if (!stripe) return;
+
+    const { items, subtotal, shippingPrice, total, shipping } = latestRef.current;
+    const shippingLabel = SHIPPING.find(s => s.id === shipping)?.label || 'Standard Delivery';
+
     const pr = stripe.paymentRequest({
       country: 'GB',
       currency: 'gbp',
-      total: { label: 'SHYNE Order', amount: Math.round(latestRef.current.total * 100) },
+      total: {
+        label: 'SHYNE Order',
+        amount: Math.round(total * 100),
+        pending: false,
+      },
+      displayItems: [
+        {
+          label: 'Subtotal',
+          amount: Math.round(subtotal * 100),
+        },
+        {
+          label: shippingLabel,
+          amount: Math.round(shippingPrice * 100),
+          pending: false,
+        },
+      ],
       requestPayerName: true,
       requestPayerEmail: true,
       requestPayerPhone: true,
+      requestPayerCountry: true,
+      requestShipping: false,
+      requestBillingAddress: true,
     });
-    pr.canMakePayment().then(result => { if (result) setPaymentRequest(pr); });
 
-    pr.on('paymentmethod', (e) => {
-      const { items, subtotal, shippingPrice, total, shipping, form } = latestRef.current;
-      sessionStorage.setItem('shyne_last_order', JSON.stringify({
-        items, subtotal, shippingPrice, total,
-        shippingMethod: SHIPPING.find(s => s.id === shipping)?.label,
-        form: { name: e.payerName || form.fullName, email: e.payerEmail || form.email,
-                address: form.address, city: form.city, postcode: form.postcode, country: form.country },
-        paymentMethodId: e.paymentMethod.id,
-      }));
-      e.complete('success');
-      clearCart();
-      window.location.href = '/payment/success';
+    pr.canMakePayment().then(result => {
+      console.log('Apple Pay available:', result);
+      if (result) setPaymentRequest(pr);
+    });
+
+    pr.on('paymentmethod', async (e) => {
+      setProcessing(true);
+      try {
+        const { items, subtotal, shippingPrice, total, shipping, form } = latestRef.current;
+
+        const res = await fetch('/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: items.map(i => ({ slug: i.slug, quantity: i.quantity })),
+            shipping,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          e.complete('fail');
+          setPaymentErr(data.error || 'Payment failed.');
+          setProcessing(false);
+          return;
+        }
+
+        const { error, paymentIntent } = await stripe.confirmCardPayment(data.clientSecret, {
+          payment_method: e.paymentMethod.id,
+        });
+
+        if (error) {
+          e.complete('fail');
+          setPaymentErr(error.message);
+          setProcessing(false);
+          return;
+        }
+
+        if (paymentIntent && paymentIntent.status === 'succeeded') {
+          try {
+            await fetch('/api/order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                fullName: e.payerName || form.fullName,
+                email: e.payerEmail || form.email,
+                phone: e.payerPhone || form.phone,
+                address: e.payerAddress?.addressLine?.[0] || form.address,
+                city: e.payerAddress?.city || form.city,
+                postcode: e.payerAddress?.postalCode || form.postcode,
+                country: e.payerAddress?.country || form.country,
+                items: items,
+                subtotal: subtotal,
+                shippingPrice: shippingPrice,
+                total: total,
+                shippingMethod: SHIPPING.find(s => s.id === shipping)?.label,
+                timestamp: new Date().toISOString(),
+              }),
+            });
+          } catch (err) {
+            console.error('Order sync error:', err);
+          }
+
+          e.complete('success');
+          clearCart();
+          window.location.href = '/payment/success';
+        } else {
+          e.complete('fail');
+          setPaymentErr('Payment not confirmed.');
+        }
+      } catch (err) {
+        console.error('Apple Pay error:', err);
+        e.complete('fail');
+        setPaymentErr('Payment failed.');
+      }
+      setProcessing(false);
     });
   }, [stripe, clearCart]);
 
@@ -219,30 +303,44 @@ function InnerForm({ items, subtotal, clearCart }) {
       let paymentMethodId = null;
 
       if (!DEMO && stripe && elements) {
-        /* ── REAL STRIPE FLOW ─────────────────────────────────── */
-        const { paymentMethod, error } = await stripe.createPaymentMethod({
-          type: 'card',
-          card: elements.getElement(CardElement),
-          billing_details: {
-            name: form.fullName,
-            email: form.email,
-            phone: form.phone,
-            address: { line1: form.address, city: form.city, postal_code: form.postcode, country: form.country },
+        /* ── REAL STRIPE FLOW (PaymentIntent + 3D Secure) ──────── */
+        // 1. Ask the server to create a PaymentIntent.
+        //    Send only slugs + quantities — the server computes the real total
+        //    from its own price list, so the charge can't be tampered with.
+        const res = await fetch('/api/create-payment-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: items.map(i => ({ slug: i.slug, quantity: i.quantity })),
+            shipping,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          setPaymentErr(data.error || 'Could not start payment. Please try again.');
+          setProcessing(false);
+          return;
+        }
+
+        // 2. Confirm the card payment (Stripe handles any 3D Secure step)
+        const { error, paymentIntent } = await stripe.confirmCardPayment(data.clientSecret, {
+          payment_method: {
+            card: elements.getElement(CardElement),
+            billing_details: {
+              name: form.fullName,
+              email: form.email,
+              phone: form.phone,
+              address: { line1: form.address, city: form.city, postal_code: form.postcode, country: form.country },
+            },
           },
         });
 
         if (error) { setPaymentErr(error.message); setProcessing(false); return; }
-        paymentMethodId = paymentMethod.id;
-
-        /* ── TO CHARGE THE CARD, uncomment and add your backend: ──
-        const res = await fetch('/api/create-payment-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentMethodId, amount: Math.round(total * 100), currency: 'gbp' }),
-        });
-        const data = await res.json();
-        if (data.error) { setPaymentErr(data.error); setProcessing(false); return; }
-        ─────────────────────────────────────────────────────────── */
+        if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+          window.location.href = '/payment/cancel?reason=payment-failed';
+          return;
+        }
+        paymentMethodId = paymentIntent.id;
       } else {
         /* ── DEMO MODE — no charge ─────────────────────────────── */
         await new Promise(r => setTimeout(r, 1800));
