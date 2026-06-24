@@ -203,7 +203,8 @@ function InnerForm({ items, subtotal, clearCart }) {
       try {
         const { items, subtotal, shippingPrice, total, shipping, form } = latestRef.current;
 
-        const res = await fetch('/api/create-payment-intent', {
+        // 1. Create PaymentIntent on backend
+        const piRes = await fetch('/api/create-payment-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -211,63 +212,78 @@ function InnerForm({ items, subtotal, clearCart }) {
             shipping,
           }),
         });
-        const data = await res.json();
-        if (!res.ok || data.error) {
+        const piData = await piRes.json();
+
+        if (!piRes.ok || piData.error) {
+          console.error('PaymentIntent creation failed:', piData.error);
           e.complete('fail');
-          setPaymentErr(data.error || 'Payment failed.');
+          setPaymentErr(piData.error || 'Failed to create payment.');
           setProcessing(false);
           return;
         }
 
-        const { error, paymentIntent } = await stripe.confirmCardPayment(data.clientSecret, {
-          payment_method: e.paymentMethod.id,
-        });
+        const clientSecret = piData.clientSecret;
+        console.log('PaymentIntent created:', clientSecret);
 
-        if (error) {
+        // 2. Confirm payment with the token from Apple Pay
+        const { error: confirmError, paymentIntent } = await stripe.handleCardPayment(clientSecret, e.paymentMethod);
+
+        if (confirmError) {
+          console.error('Payment confirmation error:', confirmError);
           e.complete('fail');
-          setPaymentErr(error.message);
+          setPaymentErr(confirmError.message || 'Payment confirmation failed.');
           setProcessing(false);
           return;
         }
 
-        if (paymentIntent && paymentIntent.status === 'succeeded') {
-          try {
-            await fetch('/api/order', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                fullName: e.payerName || form.fullName,
-                email: e.payerEmail || form.email,
-                phone: e.payerPhone || form.phone,
-                address: e.payerAddress?.addressLine?.[0] || form.address,
-                city: e.payerAddress?.city || form.city,
-                postcode: e.payerAddress?.postalCode || form.postcode,
-                country: e.payerAddress?.country || form.country,
-                items: items,
-                subtotal: subtotal,
-                shippingPrice: shippingPrice,
-                total: total,
-                shippingMethod: SHIPPING.find(s => s.id === shipping)?.label,
-                timestamp: new Date().toISOString(),
-              }),
-            });
-          } catch (err) {
-            console.error('Order sync error:', err);
-          }
+        console.log('PaymentIntent status:', paymentIntent?.status);
 
-          e.complete('success');
-          clearCart();
-          window.location.href = '/payment/success';
-        } else {
+        if (!paymentIntent || paymentIntent.status !== 'succeeded') {
+          console.error('Payment not succeeded. Status:', paymentIntent?.status);
           e.complete('fail');
-          setPaymentErr('Payment not confirmed.');
+          setPaymentErr('Payment was not confirmed. Status: ' + paymentIntent?.status);
+          setProcessing(false);
+          return;
         }
+
+        // 3. Payment succeeded - record order
+        console.log('Payment succeeded, recording order...');
+        try {
+          await fetch('/api/order', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fullName: e.payerName || form.fullName,
+              email: e.payerEmail || form.email,
+              phone: e.payerPhone || form.phone,
+              address: e.payerAddress?.addressLine?.[0] || form.address,
+              city: e.payerAddress?.city || form.city,
+              postcode: e.payerAddress?.postalCode || form.postcode,
+              country: e.payerAddress?.country || form.country || 'GB',
+              items: items,
+              subtotal: subtotal,
+              shippingPrice: shippingPrice,
+              total: total,
+              shippingMethod: SHIPPING.find(s => s.id === shipping)?.label,
+              timestamp: new Date().toISOString(),
+            }),
+          });
+          console.log('Order recorded successfully');
+        } catch (orderErr) {
+          console.error('Order sync error:', orderErr);
+          // Continue anyway - payment succeeded even if order sync failed
+        }
+
+        e.complete('success');
+        clearCart();
+        window.location.href = '/payment/success';
+
       } catch (err) {
         console.error('Apple Pay error:', err);
         e.complete('fail');
-        setPaymentErr('Payment failed.');
+        setPaymentErr('Payment processing failed: ' + err.message);
+        setProcessing(false);
       }
-      setProcessing(false);
     });
   }, [stripe, clearCart]);
 
