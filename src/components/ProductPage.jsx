@@ -291,7 +291,7 @@ function TopBanner() {
 
 /* ------------------------------ Sticky buy bar ---------------------------- */
 
-function StickyBuyBar({ product }) {
+function StickyBuyBar({ product, isComingSoon }) {
   const { addItem } = useCart();
   const [show, setShow] = useState(false);
   useEffect(() => {
@@ -300,6 +300,9 @@ function StickyBuyBar({ product }) {
     onScroll();
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  if (isComingSoon) return null;
+
   return (
     <AnimatePresence>
       {show && (
@@ -347,6 +350,9 @@ export default function ProductPage({ product }) {
 
   // Fallback so a bad/unknown slug still renders something sensible.
   const p = product || products['bare-vanilla-glow-oil'];
+
+  const availableProducts = ['bare-vanilla-glow-oil', 'glow-polish-bar'];
+  const isComingSoon = !availableProducts.includes(p.slug);
 
   const handleAdd = () => {
     addItem(p);
@@ -425,23 +431,34 @@ export default function ProductPage({ product }) {
               </p>
 
               <div className="mt-7">
-                <button
-                  onClick={handleAdd}
-                  className={`w-full text-white text-[12px] tracking-[0.14em] uppercase font-medium rounded-lg py-4 transition-colors duration-300 ${
-                    added ? 'bg-[#b4502f] hover:bg-[#9a4427]' : 'bg-[#3d3b37] hover:bg-[#2c2a27]'
-                  }`}
-                >
-                  {added ? '✓ Added to Bag' : `${p.ctaLabel} — ${fmt(p.salePrice)}`}
-                </button>
-                <p className="text-[11px] text-[#9c9a96] mt-3 text-center">
-                  Or 4 interest-free payments of {fmt(p.salePrice / 4)} with{' '}
-                  <span className="font-semibold text-[#67645e]">Klarna</span>.
-                </p>
-                {added && (
-                  <p className="text-[11px] text-[#67645e] mt-2 text-center">
-                    Added to your bag.{' '}
-                    <a href="/cart" className="font-semibold underline hover:text-[#3d3b37]">View bag →</a>
-                  </p>
+                {isComingSoon ? (
+                  <button
+                    disabled
+                    className="w-full text-white text-[12px] tracking-[0.14em] uppercase font-medium rounded-lg py-4 bg-[#d5cfc8] cursor-not-allowed"
+                  >
+                    Coming Soon
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={handleAdd}
+                      className={`w-full text-white text-[12px] tracking-[0.14em] uppercase font-medium rounded-lg py-4 transition-colors duration-300 ${
+                        added ? 'bg-[#b4502f] hover:bg-[#9a4427]' : 'bg-[#3d3b37] hover:bg-[#2c2a27]'
+                      }`}
+                    >
+                      {added ? '✓ Added to Bag' : `${p.ctaLabel} — ${fmt(p.salePrice)}`}
+                    </button>
+                    <p className="text-[11px] text-[#9c9a96] mt-3 text-center">
+                      Or 4 interest-free payments of {fmt(p.salePrice / 4)} with{' '}
+                      <span className="font-semibold text-[#67645e]">Klarna</span>.
+                    </p>
+                    {added && (
+                      <p className="text-[11px] text-[#67645e] mt-2 text-center">
+                        Added to your bag.{' '}
+                        <a href="/cart" className="font-semibold underline hover:text-[#3d3b37]">View bag →</a>
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -667,13 +684,22 @@ export default function ProductPage({ product }) {
                 ))}
               </dl>
 
-              <button
-                onClick={handleAdd}
-                className="mt-6 inline-flex items-center gap-2 bg-[#3d3b37] text-white text-[11px] tracking-[0.12em] uppercase font-medium rounded-full px-7 py-3.5 hover:bg-[#2c2a27] transition-colors duration-300"
-              >
-                {added ? '✓ Added' : `Add to bag — ${fmt(p.salePrice)}`}
-                <span className="text-white/50 line-through">{fmt(p.price)}</span>
-              </button>
+              {isComingSoon ? (
+                <button
+                  disabled
+                  className="mt-6 inline-flex items-center gap-2 bg-[#d5cfc8] text-white text-[11px] tracking-[0.12em] uppercase font-medium rounded-full px-7 py-3.5 cursor-not-allowed"
+                >
+                  Coming Soon
+                </button>
+              ) : (
+                <button
+                  onClick={handleAdd}
+                  className="mt-6 inline-flex items-center gap-2 bg-[#3d3b37] text-white text-[11px] tracking-[0.12em] uppercase font-medium rounded-full px-7 py-3.5 hover:bg-[#2c2a27] transition-colors duration-300"
+                >
+                  {added ? '✓ Added' : `Add to bag — ${fmt(p.salePrice)}`}
+                  <span className="text-white/50 line-through">{fmt(p.price)}</span>
+                </button>
+              )}
             </div>
           </Reveal>
         </section>
@@ -940,7 +966,7 @@ export default function ProductPage({ product }) {
       </main>
 
       <Footer />
-      <StickyBuyBar product={p} />
+      <StickyBuyBar product={p} isComingSoon={isComingSoon} />
       {/* bottom spacer so sticky bar never hides the footer end */}
       <div className="h-16" />
     </div>

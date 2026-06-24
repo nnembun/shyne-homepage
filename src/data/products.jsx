@@ -5,6 +5,8 @@
    styling, animations and responsiveness are all handled by the template.
 ---------------------------------------------------------------------------- */
 
+import { PRICES } from './prices.js';
+
 export const products = {
   /* ===================== BARE VANILLA GLOW OIL ===================== */
   'bare-vanilla-glow-oil': {
@@ -15,7 +17,7 @@ export const products = {
     subtitle: 'Nourishing Body Glaze',
     scent: 'Vanilla Sugar',
     price: 28.0,
-    salePrice: 15.99,
+    salePrice: PRICES['bare-vanilla-glow-oil'],
     rating: 4.8,
     reviews: 842,
     tagline: 'Weightless glow, sun-kissed skin',
@@ -134,7 +136,7 @@ export const products = {
     subtitle: 'Illuminating Body Glaze',
     scent: 'Amber & Coconut',
     price: 32.0,
-    salePrice: 19.99,
+    salePrice: PRICES['golden-hour-glow'],
     rating: 4.9,
     reviews: 1136,
     tagline: 'Bottled sunshine, lit-from-within',
@@ -253,7 +255,7 @@ export const products = {
     subtitle: 'Luminous Body Veil',
     scent: 'Vanilla Sugar',
     price: 35.0,
-    salePrice: 19.99,
+    salePrice: PRICES['pearl-veil'],
     rating: 4.9,
     reviews: 980,
     tagline: 'Luminous, pearl-lit skin',
@@ -372,7 +374,7 @@ export const products = {
     subtitle: 'Bronzing Body Glaze',
     scent: 'Coconut & Amber',
     price: 30.0,
-    salePrice: 19.99,
+    salePrice: PRICES['sunset-glow'],
     rating: 4.8,
     reviews: 760,
     tagline: 'Warm bronze, sun-kissed shimmer',
@@ -491,7 +493,7 @@ export const products = {
     subtitle: 'Hydrating Glow Serum',
     scent: 'Fragrance-Free',
     price: 26.0,
-    salePrice: 19.99,
+    salePrice: PRICES['hydrating-hyaluronic-acid-serum'],
     rating: 4.9,
     reviews: 1420,
     tagline: 'Deep hydration, dewy glow',
@@ -608,7 +610,7 @@ export const products = {
     subtitle: 'Soft Exfoliating Bar',
     scent: 'Earthy & Fresh',
     price: 22.0,
-    salePrice: 12.99,
+    salePrice: PRICES['glow-polish-bar'],
     rating: 4.7,
     reviews: 612,
     tagline: 'Smooth, polished, glowing skin',

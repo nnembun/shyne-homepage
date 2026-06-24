@@ -8,6 +8,7 @@ import CartPage from './components/CartPage.jsx'
 import CheckoutPage from './components/CheckoutPage.jsx'
 import PaymentSuccessPage from './components/PaymentSuccessPage.jsx'
 import PaymentCancelPage from './components/PaymentCancelPage.jsx'
+import WaitlistPage from './components/WaitlistPage.jsx'
 import { products } from './data/products.jsx'
 import { CartProvider } from './store/CartContext.jsx'
 
@@ -23,6 +24,7 @@ else if (path === '/cart')         Page = <CartPage />
 else if (path === '/checkout')     Page = <CheckoutPage />
 else if (path === '/payment/success') Page = <PaymentSuccessPage />
 else if (path === '/payment/cancel')  Page = <PaymentCancelPage />
+else if (path === '/waitlist')     Page = <WaitlistPage />
 else if (product)                  Page = <ProductPage product={product} />
 else                               Page = <App />
 

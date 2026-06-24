@@ -1,0 +1,7 @@
+# Large files not referenced anywhere in the site — excluded from deploy
+# (kept locally, just not uploaded to Vercel)
+public/BLOG PAGE .pdf
+public/ABOUT PAGE .pdf
+public/images/hero image .png
+public/images/hf_20260601_192324_ad928fd8-d093-4a62-b6e8-378118cf8d6a.png
+public/images/hf_20260601_184935_91b7a464-da84-4635-993a-e15a315c66e1.png
