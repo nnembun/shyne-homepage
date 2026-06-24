@@ -108,9 +108,36 @@ function EmptyCart() {
 
 export default function CartPage() {
   const { items, removeItem, updateQuantity, itemCount, subtotal } = useCart();
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
 
   const shippingCost = subtotal >= 45 ? 0 : 3.99;
   const total = subtotal + shippingCost;
+
+  const handleCheckout = async () => {
+    setProcessing(true);
+    setError('');
+    try {
+      const res = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map(i => ({ slug: i.slug, quantity: i.quantity, name: i.name, price: i.price, salePrice: i.salePrice, image: i.image })),
+          shipping: 'standard',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to create checkout session');
+        setProcessing(false);
+        return;
+      }
+      window.location.href = data.url;
+    } catch (err) {
+      setError(err.message || 'An error occurred');
+      setProcessing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white text-[#3d3b37]">
@@ -220,13 +247,14 @@ export default function CartPage() {
                   </div>
                 </dl>
 
-                <a href="/checkout"
-                  className="mt-6 flex items-center justify-center gap-2 w-full bg-[#3d3b37] text-white text-[11px] tracking-[0.16em] uppercase font-semibold rounded-lg py-4 hover:bg-[#2c2a27] transition-colors duration-300">
-                  Proceed to Checkout
+                <button onClick={handleCheckout} disabled={processing}
+                  className="mt-6 flex items-center justify-center gap-2 w-full bg-[#3d3b37] text-white text-[11px] tracking-[0.16em] uppercase font-semibold rounded-lg py-4 hover:bg-[#2c2a27] disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-300">
+                  {processing ? 'Processing...' : 'Proceed to Checkout'}
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
                   </svg>
-                </a>
+                </button>
+                {error && <p className="text-red-600 text-[11px] mt-2 text-center">{error}</p>}
 
                 <p className="text-[11px] text-[#9c9a96] text-center mt-4">
                   Secure checkout · Stripe encrypted
