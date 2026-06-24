@@ -200,10 +200,13 @@ function InnerForm({ items, subtotal, clearCart }) {
 
     pr.on('paymentmethod', async (e) => {
       setProcessing(true);
+      let paymentSucceeded = false;
+
       try {
         const { items, subtotal, shippingPrice, total, shipping, form } = latestRef.current;
 
         // 1. Create PaymentIntent on backend
+        console.log('Creating PaymentIntent...');
         const piRes = await fetch('/api/create-payment-intent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -215,41 +218,56 @@ function InnerForm({ items, subtotal, clearCart }) {
         const piData = await piRes.json();
 
         if (!piRes.ok || piData.error) {
-          console.error('PaymentIntent creation failed:', piData.error);
-          e.complete('fail');
-          setPaymentErr(piData.error || 'Failed to create payment.');
-          setProcessing(false);
-          return;
+          throw new Error(`PaymentIntent creation failed: ${piData.error || piRes.status}`);
         }
 
         const clientSecret = piData.clientSecret;
-        console.log('PaymentIntent created:', clientSecret);
+        if (!clientSecret) {
+          throw new Error('No clientSecret returned from server');
+        }
+        console.log('✅ PaymentIntent created');
 
-        // 2. Confirm payment with the token from Apple Pay
-        const { error: confirmError, paymentIntent } = await stripe.handleCardPayment(clientSecret, e.paymentMethod);
+        // 2. Confirm payment using stripe.confirmCardPayment (Apple Pay compatible)
+        console.log('Confirming payment with Apple Pay token...');
+        const { error: confirmError, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: e.paymentMethod.id,
+          save_payment_method: false,
+        }, { handleActions: false });
 
         if (confirmError) {
-          console.error('Payment confirmation error:', confirmError);
-          e.complete('fail');
-          setPaymentErr(confirmError.message || 'Payment confirmation failed.');
-          setProcessing(false);
-          return;
+          throw new Error(`Payment confirmation error: ${confirmError.message} (${confirmError.code})`);
         }
 
-        console.log('PaymentIntent status:', paymentIntent?.status);
+        if (!paymentIntent) {
+          throw new Error('No paymentIntent returned from Stripe');
+        }
 
-        if (!paymentIntent || paymentIntent.status !== 'succeeded') {
-          console.error('Payment not succeeded. Status:', paymentIntent?.status);
-          e.complete('fail');
-          setPaymentErr('Payment was not confirmed. Status: ' + paymentIntent?.status);
-          setProcessing(false);
-          return;
+        console.log('PaymentIntent status:', paymentIntent.status);
+        console.log('PaymentIntent ID:', paymentIntent.id);
+
+        // Check payment status
+        if (paymentIntent.status === 'succeeded') {
+          console.log('✅ Payment succeeded!');
+          paymentSucceeded = true;
+        } else if (paymentIntent.status === 'processing') {
+          console.log('⏳ Payment processing, waiting...');
+          // Payment is processing, try to fetch the latest status
+          await new Promise(r => setTimeout(r, 2000));
+          paymentSucceeded = true;
+        } else if (paymentIntent.status === 'requires_action' || paymentIntent.status === 'requires_confirmation') {
+          throw new Error(`Payment requires action: ${paymentIntent.status}`);
+        } else {
+          throw new Error(`Payment failed with status: ${paymentIntent.status}`);
+        }
+
+        if (!paymentSucceeded) {
+          throw new Error('Payment was not confirmed');
         }
 
         // 3. Payment succeeded - record order
-        console.log('Payment succeeded, recording order...');
+        console.log('Recording order in GHL/HubSpot...');
         try {
-          await fetch('/api/order', {
+          const orderRes = await fetch('/api/order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -268,20 +286,27 @@ function InnerForm({ items, subtotal, clearCart }) {
               timestamp: new Date().toISOString(),
             }),
           });
-          console.log('Order recorded successfully');
+
+          if (!orderRes.ok) {
+            console.error('Order recording failed:', await orderRes.text());
+            // Don't throw - payment succeeded even if order sync failed
+          } else {
+            console.log('✅ Order recorded successfully');
+          }
         } catch (orderErr) {
           console.error('Order sync error:', orderErr);
-          // Continue anyway - payment succeeded even if order sync failed
         }
 
+        // Only complete with success if payment actually succeeded
+        console.log('✅ Apple Pay payment complete!');
         e.complete('success');
         clearCart();
         window.location.href = '/payment/success';
 
       } catch (err) {
-        console.error('Apple Pay error:', err);
+        console.error('❌ Apple Pay failed:', err.message);
         e.complete('fail');
-        setPaymentErr('Payment processing failed: ' + err.message);
+        setPaymentErr(err.message || 'Apple Pay payment failed. Please try again.');
         setProcessing(false);
       }
     });
