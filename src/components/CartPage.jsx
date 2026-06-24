@@ -118,22 +118,43 @@ export default function CartPage() {
     setProcessing(true);
     setError('');
     try {
+      const payload = {
+        items: items.map(i => ({
+          slug: i.slug,
+          quantity: i.quantity,
+          name: i.name,
+          price: i.price,
+          salePrice: i.salePrice,
+          image: i.image
+        })),
+        shipping: 'standard',
+      };
+      console.log('Sending payload:', payload);
+
       const res = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: items.map(i => ({ slug: i.slug, quantity: i.quantity, name: i.name, price: i.price, salePrice: i.salePrice, image: i.image })),
-          shipping: 'standard',
-        }),
+        body: JSON.stringify(payload),
       });
+
       const data = await res.json();
+      console.log('API response:', res.status, data);
+
       if (!res.ok) {
         setError(data.error || 'Failed to create checkout session');
         setProcessing(false);
         return;
       }
+
+      if (!data.url) {
+        setError('No checkout URL returned from server');
+        setProcessing(false);
+        return;
+      }
+
       window.location.href = data.url;
     } catch (err) {
+      console.error('Checkout error:', err);
       setError(err.message || 'An error occurred');
       setProcessing(false);
     }
