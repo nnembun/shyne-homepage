@@ -6,7 +6,7 @@ export default function Hero() {
       {/* Background Image — top-anchored on mobile to keep face high, centered on desktop */}
       <div className="absolute inset-0">
         <img
-          src="/VANILLA GLAZE HERO .png"
+          src="/HERO IMAGE LAUNCH DAY.jpg"
           alt="SHYNE beauty editorial"
           className="w-full h-full object-contain"
           loading="lazy"
