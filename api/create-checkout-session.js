@@ -65,8 +65,13 @@ export default async function handler(req, res) {
     // Create payment link
     const paymentLink = await stripe.paymentLinks.create({
       line_items: lineItems,
+      customer_creation: 'always',
       phone_number_collection: {
         enabled: true,
+      },
+      billing_address_collection: 'required',
+      shipping_address_collection: {
+        allowed_countries: [],
       },
       after_completion: {
         type: 'redirect',
