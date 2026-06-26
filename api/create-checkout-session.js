@@ -52,7 +52,7 @@ export default async function handler(req, res) {
     const paymentLink = await stripe.paymentLinks.create({
       line_items: lineItems,
       shipping_address_collection: {
-        allowed_countries: ['GB', 'US', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE', 'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'IE', 'PT', 'GR', 'CZ', 'PL', 'HU', 'RO', 'BG', 'HR', 'SL', 'SK', 'LT', 'LV', 'EE', 'JP', 'KR', 'CN', 'SG', 'HK', 'IN', 'BR', 'MX', 'NZ'],
+        enabled: true,
       },
       phone_number_collection: {
         enabled: true,
