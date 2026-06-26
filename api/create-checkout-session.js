@@ -1,6 +1,6 @@
 /**
- * Creates a Stripe Payment Link
- * Redirects user to payment link
+ * Creates a Stripe Checkout Session
+ * Redirects user to Stripe-hosted checkout page with full form collection
  */
 import Stripe from 'stripe';
 import { computeOrder } from './_prices.js';
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Convert items to Stripe line items for payment link
+    // Convert items to Stripe line items
     const lineItems = items.map(item => ({
       price_data: {
         currency: 'gbp',
@@ -48,13 +48,13 @@ export default async function handler(req, res) {
       quantity: item.quantity,
     }));
 
-    // Add shipping to line items (simplified approach)
+    // Add shipping to line items
     if (order.shippingCost > 0) {
       lineItems.push({
         price_data: {
           currency: 'gbp',
           product_data: {
-            name: 'Shipping',
+            name: order.shippingCost >= 7 ? 'International Shipping' : 'Standard Delivery (UK)',
           },
           unit_amount: Math.round(order.shippingCost * 100),
         },
@@ -62,28 +62,33 @@ export default async function handler(req, res) {
       });
     }
 
-    // Create payment link
-    const paymentLink = await stripe.paymentLinks.create({
+    // Create checkout session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
       line_items: lineItems,
+      mode: 'payment',
+      success_url: `${DOMAIN}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${DOMAIN}/payment/cancel`,
+      billing_address_collection: 'required',
       phone_number_collection: {
         enabled: true,
       },
-      billing_address_collection: 'required',
-      after_completion: {
-        type: 'redirect',
-        redirect: {
-          url: `${DOMAIN}/payment/success`,
-        },
+      metadata: {
+        order_items: JSON.stringify(items),
+        shipping_method: shipping,
+        subtotal: String(order.subtotal),
+        shipping_cost: String(order.shippingCost),
       },
     });
 
-    console.log(`✅ Payment link created: ${paymentLink.url}`);
+    console.log(`✅ Checkout session created: ${session.id}`);
 
     return res.status(200).json({
-      url: paymentLink.url,
+      sessionId: session.id,
+      url: session.url,
     });
   } catch (err) {
-    console.error('❌ Payment link error:', err.message);
-    return res.status(500).json({ error: err.message || 'Could not create payment link.' });
+    console.error('❌ Checkout session error:', err.message);
+    return res.status(500).json({ error: err.message || 'Could not create checkout session.' });
   }
 }
