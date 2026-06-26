@@ -51,9 +51,6 @@ export default async function handler(req, res) {
     // Create payment link with shipping options
     const paymentLink = await stripe.paymentLinks.create({
       line_items: lineItems,
-      shipping_address_collection: {
-        enabled: true,
-      },
       phone_number_collection: {
         enabled: true,
       },
