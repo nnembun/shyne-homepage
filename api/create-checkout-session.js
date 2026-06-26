@@ -48,34 +48,26 @@ export default async function handler(req, res) {
       quantity: item.quantity,
     }));
 
-    // Create payment link with shipping options
+    // Add shipping to line items (simplified approach)
+    if (order.shippingCost > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'gbp',
+          product_data: {
+            name: 'Shipping',
+          },
+          unit_amount: Math.round(order.shippingCost * 100),
+        },
+        quantity: 1,
+      });
+    }
+
+    // Create payment link
     const paymentLink = await stripe.paymentLinks.create({
       line_items: lineItems,
       phone_number_collection: {
         enabled: true,
       },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            type: 'fixed_amount',
-            fixed_amount: {
-              amount: order.shippingCost > 0 ? Math.round(order.shippingCost * 100) : 0,
-              currency: 'gbp',
-            },
-            display_name: order.shippingCost > 0 ? 'Standard Delivery (UK)' : 'Free Delivery',
-          },
-        },
-        {
-          shipping_rate_data: {
-            type: 'fixed_amount',
-            fixed_amount: {
-              amount: 750, // £7.50 in pence
-              currency: 'gbp',
-            },
-            display_name: 'International Shipping',
-          },
-        },
-      ],
       after_completion: {
         type: 'redirect',
         redirect: {
