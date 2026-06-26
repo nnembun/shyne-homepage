@@ -48,26 +48,34 @@ export default async function handler(req, res) {
       quantity: item.quantity,
     }));
 
-    // Add shipping as a line item
-    if (order.shippingCost > 0) {
-      lineItems.push({
-        price_data: {
-          currency: 'gbp',
-          product_data: {
-            name: 'Standard Delivery (2-5 days)',
-          },
-          unit_amount: Math.round(order.shippingCost * 100),
-        },
-        quantity: 1,
-      });
-    }
-
-    // Create payment link
+    // Create payment link with shipping options
     const paymentLink = await stripe.paymentLinks.create({
       line_items: lineItems,
       shipping_address_collection: {
-        allowed_countries: ['GB'],
+        allowed_countries: ['GB', 'US', 'CA', 'AU', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE', 'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'IE', 'PT', 'GR', 'CZ', 'PL', 'HU', 'RO', 'BG', 'HR', 'SL', 'SK', 'LT', 'LV', 'EE', 'JP', 'KR', 'CN', 'SG', 'HK', 'IN', 'BR', 'MX', 'NZ'],
       },
+      shipping_options: [
+        {
+          shipping_rate_data: {
+            type: 'fixed_amount',
+            fixed_amount: {
+              amount: order.shippingCost > 0 ? Math.round(order.shippingCost * 100) : 0,
+              currency: 'gbp',
+            },
+            display_name: order.shippingCost > 0 ? 'Standard Delivery (UK)' : 'Free Delivery',
+          },
+        },
+        {
+          shipping_rate_data: {
+            type: 'fixed_amount',
+            fixed_amount: {
+              amount: 750, // £7.50 in pence
+              currency: 'gbp',
+            },
+            display_name: 'International Shipping',
+          },
+        },
+      ],
       after_completion: {
         type: 'redirect',
         redirect: {
