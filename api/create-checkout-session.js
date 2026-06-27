@@ -70,6 +70,9 @@ export default async function handler(req, res) {
       success_url: `${DOMAIN}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${DOMAIN}/payment/cancel`,
       billing_address_collection: 'required',
+      shipping_address_collection: {
+        allowed_countries: ['GB'],
+      },
       phone_number_collection: {
         enabled: true,
       },

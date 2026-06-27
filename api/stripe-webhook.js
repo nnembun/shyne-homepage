@@ -1,5 +1,5 @@
 /**
- * Stripe webhook — the source of truth for whether a payment really succeeded.
+ * Stripe webhook — listens for checkout.session.completed to capture full order data
  *
  * Stripe signs every event; we verify the signature with STRIPE_WEBHOOK_SECRET
  * so no one can forge a "payment succeeded" call. This is independent of the
@@ -7,12 +7,13 @@
  *
  * SETUP (one-time, in your Stripe Dashboard):
  *   1. Developers → Webhooks → Add endpoint
- *   2. URL:  https://shyne-homepage.vercel.app/api/stripe-webhook
- *   3. Events: payment_intent.succeeded, payment_intent.payment_failed
+ *   2. URL:  https://www.shyneoils.com/api/stripe-webhook
+ *   3. Events: checkout.session.completed
  *   4. Copy the "Signing secret" (whsec_...) → add as STRIPE_WEBHOOK_SECRET in
  *      Vercel env vars → redeploy.
  */
 import Stripe from 'stripe';
+import { pushOrderToGHL } from './_ghl.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
@@ -49,20 +50,83 @@ export default async function handler(req, res) {
   }
 
   switch (event.type) {
-    case 'payment_intent.succeeded': {
-      const pi = event.data.object;
-      console.log(`✅ Payment confirmed: ${pi.id} — ${pi.amount} ${pi.currency}`);
-      // ── FULFILLMENT HOOK ──────────────────────────────────────────────
-      // Payment is genuinely confirmed here. Safe place to: mark the order
-      // paid in a DB, trigger a confirmation email, push to HubSpot, etc.
-      // pi.metadata contains subtotal / shipping_cost / shipping_method.
+    case 'checkout.session.completed': {
+      const session = event.data.object;
+
+      // Only process if payment was successful
+      if (session.payment_status !== 'paid') {
+        console.log(`⚠️ Checkout session ${session.id} not paid yet`);
+        break;
+      }
+
+      console.log(`✅ Checkout session completed: ${session.id}`);
+
+      // Retrieve full session with expanded customer and shipping details
+      try {
+        const fullSession = await stripe.checkout.sessions.retrieve(session.id, {
+          expand: ['customer', 'customer_details', 'shipping_details', 'line_items'],
+        });
+
+        const shippingAddress = fullSession.shipping_details?.address || {};
+        const customerDetails = fullSession.customer_details || {};
+
+        console.log('📍 Shipping Address received:');
+        console.log('  Line 1:', shippingAddress.line1);
+        console.log('  Line 2:', shippingAddress.line2);
+        console.log('  City:', shippingAddress.city);
+        console.log('  State/County:', shippingAddress.state);
+        console.log('  Postal Code:', shippingAddress.postal_code);
+        console.log('  Country:', shippingAddress.country);
+
+        // Parse metadata
+        const metadata = fullSession.metadata || {};
+        const items = metadata.order_items ? JSON.parse(metadata.order_items) : [];
+
+        // Build order data with full shipping address
+        const orderData = {
+          fullName: customerDetails.name || 'Customer',
+          email: customerDetails.email || '',
+          phone: customerDetails.phone || '',
+          // Shipping address
+          address: shippingAddress.line1 || '',
+          address2: shippingAddress.line2 || '',
+          city: shippingAddress.city || '',
+          county: shippingAddress.state || '',
+          postcode: shippingAddress.postal_code || '',
+          country: shippingAddress.country || 'GB',
+          // Order details
+          items: items,
+          subtotal: parseFloat(metadata.subtotal || 0),
+          shippingPrice: parseFloat(metadata.shipping_cost || 0),
+          total: fullSession.amount_total / 100,
+          shippingMethod: metadata.shipping_method || 'standard',
+          paymentIntentId: fullSession.payment_intent,
+        };
+
+        console.log('📦 Order data ready for GHL:', {
+          email: orderData.email,
+          fullName: orderData.fullName,
+          phone: orderData.phone,
+          address: orderData.address,
+          city: orderData.city,
+          postcode: orderData.postcode,
+          country: orderData.country,
+        });
+
+        // Push to GHL
+        const ghlResult = await pushOrderToGHL(orderData);
+        if (ghlResult.ok) {
+          console.log(`✅ Order pushed to GHL: ${ghlResult.contactId}`);
+        } else {
+          console.error(`❌ Failed to push to GHL: ${ghlResult.error}`);
+        }
+      } catch (err) {
+        console.error('❌ Error processing checkout session:', err.message);
+      }
+
       break;
     }
-    case 'payment_intent.payment_failed': {
-      const pi = event.data.object;
-      console.warn(`❌ Payment failed: ${pi.id} — ${pi.last_payment_error?.message || 'unknown'}`);
-      break;
-    }
+
     default:
       // Other event types are acknowledged but ignored.
       break;
