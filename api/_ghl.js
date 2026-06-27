@@ -112,7 +112,11 @@ export async function pushContactToGHL(contactData) {
     const contactResponseData = await contactResponse.json();
 
     if (!contactResponse.ok) {
-      console.error('❌ GHL Contact creation failed:', contactResponseData);
+      console.error('❌ GHL Contact creation failed:');
+      console.error('Status:', contactResponse.status);
+      console.error('Response:', JSON.stringify(contactResponseData, null, 2));
+      console.error('API Key present:', !!GHL_API_KEY);
+      console.error('Location ID:', GHL_LOCATION_ID);
       return { ok: false, error: contactResponseData.message || 'Failed to create contact' };
     }
 
