@@ -17,7 +17,7 @@ export async function pushOrderToGHL(orderData) {
   }
 
   const {
-    fullName, email, phone, address, address2, city, county, postcode, country,
+    fullName, email, phone, address, city, postcode, country,
     items, subtotal, shippingPrice, total, shippingMethod, paymentIntentId
   } = orderData;
 
@@ -39,19 +39,15 @@ export async function pushOrderToGHL(orderData) {
         email: email || '',
         phone: phone || '',
         address1: address || '',
-        address2: address2 || '',
         city: city || '',
-        state: county || '',
         postalCode: postcode || '',
         country: country || 'GB',
         tags: ['customer', 'paid-order'],
         customFields: {
           order_total: String(total),
-          shipping_cost: String(shippingPrice),
           order_items: items.map(i => `${i.name} x${i.quantity}`).join(', '),
           order_date: new Date().toISOString(),
           payment_intent_id: paymentIntentId,
-          shipping_method: shippingMethod,
         },
       }),
     });
@@ -60,13 +56,10 @@ export async function pushOrderToGHL(orderData) {
 
     if (!contactResponse.ok) {
       console.error('❌ GHL Contact creation failed:', contactData);
-      console.error('Status:', contactResponse.status);
       return { ok: false, error: contactData.message || 'Failed to create contact' };
     }
 
     console.log(`✅ GHL Contact created: ${contactData.contact?.id}`);
-    console.log(`📧 Contact: ${firstName} ${lastName} <${email}>`);
-    console.log(`🏠 Address: ${address}, ${city}, ${postcode}, ${country}`);
     return { ok: true, contactId: contactData.contact?.id };
 
   } catch (err) {
