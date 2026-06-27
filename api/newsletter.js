@@ -21,7 +21,8 @@ export default async function handler(req, res) {
   });
 
   if (!result.ok) {
-    return res.status(500).json({ error: 'Failed to subscribe' });
+    console.error('Newsletter signup failed:', result.error);
+    return res.status(500).json({ error: result.error || 'Failed to subscribe' });
   }
 
   console.log('Newsletter signup to GHL:', email);
