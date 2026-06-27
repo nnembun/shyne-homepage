@@ -1,22 +1,37 @@
-import { guard, upsertContact } from './_hubspot.js';
+import { pushContactToGHL } from './_ghl.js';
 
 export default async function handler(req, res) {
-  if (guard(req, res)) return;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { firstName, lastName, email, phone, query, timestamp } = req.body || {};
   if (!firstName || !lastName || !email || !phone || !query) {
     return res.status(400).json({ error: 'All fields are required' });
   }
 
-  await upsertContact(email, {
-    firstname: firstName,
-    lastname: lastName,
+  // Push to GHL
+  const result = await pushContactToGHL({
+    firstName,
+    lastName,
+    email,
     phone,
     message: query,
-    hs_lead_status: 'NEW',
-    contact_form_submission_date: new Date(timestamp || Date.now()).toISOString(),
+    tags: ['contact-form', 'website-inquiry'],
+    customFields: {
+      inquiry_type: 'general-inquiry',
+      message: query,
+      submitted_at: new Date(timestamp || Date.now()).toISOString(),
+    },
   });
 
-  console.log('Contact form submitted:', { firstName, lastName, email });
-  return res.status(200).json({ success: true, message: 'Message sent successfully' });
+  if (!result.ok) {
+    console.error('Failed to save contact:', result.error);
+    return res.status(500).json({ error: 'Failed to save contact' });
+  }
+
+  console.log('Contact form submitted to GHL:', { firstName, lastName, email });
+  return res.status(200).json({ success: true, message: 'Message sent successfully', contactId: result.contactId });
 }

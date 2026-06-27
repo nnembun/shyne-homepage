@@ -69,6 +69,63 @@ export async function pushOrderToGHL(orderData) {
 }
 
 /**
+ * Push generic contact to GHL (for contact forms, waitlist, etc.)
+ */
+export async function pushContactToGHL(contactData) {
+  if (!GHL_API_KEY || !GHL_LOCATION_ID) {
+    console.warn('⚠️ GHL not configured — skipping contact push');
+    return { ok: false, error: 'GHL not configured' };
+  }
+
+  const {
+    firstName = '',
+    lastName = '',
+    email = '',
+    phone = '',
+    message = '',
+    tags = ['website-form'],
+    customFields = {},
+  } = contactData;
+
+  try {
+    const contactResponse = await fetch(`${GHL_BASE_URL}/contacts/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GHL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        locationId: GHL_LOCATION_ID,
+        firstName: firstName || '',
+        lastName: lastName || '',
+        email: email || '',
+        phone: phone || '',
+        tags: Array.isArray(tags) ? tags : ['website-form'],
+        customFields: {
+          source: 'website-form',
+          submitted_at: new Date().toISOString(),
+          ...customFields,
+        },
+      }),
+    });
+
+    const contactResponseData = await contactResponse.json();
+
+    if (!contactResponse.ok) {
+      console.error('❌ GHL Contact creation failed:', contactResponseData);
+      return { ok: false, error: contactResponseData.message || 'Failed to create contact' };
+    }
+
+    console.log(`✅ GHL Contact created: ${contactResponseData.contact?.id}`);
+    return { ok: true, contactId: contactResponseData.contact?.id };
+
+  } catch (err) {
+    console.error('❌ GHL contact push error:', err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
  * Send admin notification email via GHL
  */
 export async function sendAdminNotificationGHL(orderData) {

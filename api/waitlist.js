@@ -1,28 +1,37 @@
 /**
- * Waitlist signup → HubSpot CRM (the existing SHYNE CRM).
- *
- * Creates/updates a contact as a "subscriber" and tags the source as
- * "SHYNE Waitlist" so these signups can be segmented from regular newsletter
- * signups. (lead_source / waitlist_signup_date are custom properties — if they
- * don't exist yet the contact is still created with standard fields; create
- * those properties in HubSpot to capture the source tag too.)
+ * Waitlist/Newsletter signup → Go High Level CRM
+ * Creates a contact as a "subscriber" in GHL
  */
-import { guard, upsertContact } from './_hubspot.js';
+import { pushContactToGHL } from './_ghl.js';
 
 export default async function handler(req, res) {
-  if (guard(req, res)) return;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') return res.status(204).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { email } = req.body || {};
+  const { email, source = 'waitlist-page' } = req.body || {};
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   }
 
-  await upsertContact(email, {
-    lifecyclestage: 'subscriber',
-    lead_source: 'SHYNE Waitlist',
-    waitlist_signup_date: new Date().toISOString(),
+  // Push to GHL
+  const result = await pushContactToGHL({
+    email,
+    tags: ['subscriber', 'newsletter-signup', source],
+    customFields: {
+      signup_source: source,
+      signup_date: new Date().toISOString(),
+      lifecycle_stage: 'subscriber',
+    },
   });
 
-  console.log('Waitlist signup:', email);
-  return res.status(200).json({ success: true, message: 'You are on the list.' });
+  if (!result.ok) {
+    console.error('Failed to add to waitlist:', result.error);
+    return res.status(500).json({ error: 'Failed to sign up' });
+  }
+
+  console.log('Waitlist signup to GHL:', email);
+  return res.status(200).json({ success: true, message: 'You are on the list.', contactId: result.contactId });
 }
